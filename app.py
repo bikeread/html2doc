@@ -88,12 +88,16 @@ def convert_html() -> tuple[Response, int] | Response:
         # 保存文件
         file_id = storage.save(docx_content)
         
-        # 生成临时下载链接
-        token = token_service.generate_short_token(file_id, expires_in)  # 使用短链接
-        download_url = f"{BASE_URL}/d/{token}"
+        # 生成新格式的文件URL（带扩展名）
+        file_url = f"{BASE_URL}/file/{file_id}.docx"
+        
+        # 向下兼容，同时保留原有格式的下载链接
+        token = token_service.generate_short_token(file_id, expires_in)
+        embed_url = f"{BASE_URL}/d/{token}"
         
         return jsonify({
-            'download_url': download_url,
+            'file_url': file_url,             # 新格式：直接带扩展名
+            'embed_url': embed_url,           # 旧格式：内嵌显示
             'expires_in': expires_in
         })
     except Exception as e:
@@ -192,6 +196,33 @@ def download_short_link(token: str) -> Response:
         response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         response.headers['Content-Disposition'] = f'inline; filename="{file_id}.docx"'
         return response
+
+@app.route('/file/<path:file_path>', methods=['GET'])
+def download_file_with_extension(file_path: str) -> Response:
+    """
+    文件下载接口（带文件扩展名）
+    
+    从URL路径中提取文件ID并返回对应的文件
+    例如: /file/abc123.docx 将提取文件ID为abc123
+    """
+    # 从路径中提取文件ID（移除扩展名）
+    file_id = os.path.splitext(file_path)[0]
+    
+    # 获取文件内容
+    file_content = storage.get(file_id)
+    if not file_content:
+        return jsonify({'error': '文件不存在或已被删除'}), 404
+    
+    # 文件内容
+    file_obj = io.BytesIO(file_content)
+    
+    # 返回文件下载响应
+    return send_file(
+        file_obj,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        as_attachment=True,
+        download_name=f"{file_id}.docx"
+    )
 
 @app.route('/health', methods=['GET'])
 def health_check() -> Response:
