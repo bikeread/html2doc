@@ -6,7 +6,7 @@ import os
 import threading
 import time
 from typing import Dict, Any, Tuple
-from flask import Flask, request, jsonify, send_file, Response
+from flask import Flask, request, jsonify, send_file, Response, make_response
 import io
 from dotenv import load_dotenv
 
@@ -102,7 +102,7 @@ def convert_html() -> tuple[Response, int] | Response:
 @app.route('/download/<token>', methods=['GET'])
 def download_file(token: str) -> Response:
     """
-    文件下载接口（长链接版）
+    文件下载接口
     
     验证令牌并返回对应的DOCX文件
     """
@@ -119,13 +119,12 @@ def download_file(token: str) -> Response:
     # 将文件内容转换为文件对象
     file_obj = io.BytesIO(file_content)
     
-    # 返回文件下载响应
-    return send_file(
-        file_obj,
-        mimetype='application/octet-stream',
-        as_attachment=True,
-        download_name=f"{file_id}.docx"
-    )
+    # 为内嵌场景创建响应
+    response = make_response(file_content)
+    response.headers['Content-Type'] = 'application/octet-stream'
+    response.headers['Content-Disposition'] = f'inline; filename="{file_id}.docx"'
+    
+    return response
 
 @app.route('/d/<token>', methods=['GET'])
 def download_short_link(token: str) -> Response:
@@ -144,16 +143,12 @@ def download_short_link(token: str) -> Response:
     if not file_content:
         return jsonify({'error': '文件不存在或已被删除'}), 404
     
-    # 将文件内容转换为文件对象
-    file_obj = io.BytesIO(file_content)
+    # 为内嵌场景创建响应
+    response = make_response(file_content)
+    response.headers['Content-Type'] = 'application/octet-stream'
+    response.headers['Content-Disposition'] = f'inline; filename="{file_id}.docx"'
     
-    # 返回文件下载响应
-    return send_file(
-        file_obj,
-        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        as_attachment=True,
-        download_name=f"{file_id}.docx"
-    )
+    return response
 
 @app.route('/health', methods=['GET'])
 def health_check() -> Response:
