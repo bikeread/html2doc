@@ -1,5 +1,5 @@
 services:
-  html2doc:
+  html2doc-service:
     build:
       context: .
       dockerfile: Dockerfile
