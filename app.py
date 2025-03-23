@@ -122,7 +122,7 @@ def download_file(token: str) -> Response:
     # 返回文件下载响应
     return send_file(
         file_obj,
-        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        mimetype='application/octet-stream',
         as_attachment=True,
         download_name=f"{file_id}.docx"
     )
