@@ -89,8 +89,8 @@ def convert_html() -> tuple[Response, int] | Response:
         file_id = storage.save(docx_content)
         
         # 生成临时下载链接
-        token = token_service.generate_download_token(file_id, expires_in)
-        download_url = f"{BASE_URL}/download/{token}"
+        token = token_service.generate_short_token(file_id, expires_in)  # 使用短链接
+        download_url = f"{BASE_URL}/d/{token}"
         
         return jsonify({
             'download_url': download_url,
@@ -102,12 +102,40 @@ def convert_html() -> tuple[Response, int] | Response:
 @app.route('/download/<token>', methods=['GET'])
 def download_file(token: str) -> Response:
     """
-    文件下载接口
+    文件下载接口（长链接版）
     
     验证令牌并返回对应的DOCX文件
     """
     # 验证下载令牌
     file_id = token_service.verify_download_token(token)
+    if not file_id:
+        return jsonify({'error': '无效或已过期的下载链接'}), 403
+    
+    # 获取文件内容
+    file_content = storage.get(file_id)
+    if not file_content:
+        return jsonify({'error': '文件不存在或已被删除'}), 404
+    
+    # 将文件内容转换为文件对象
+    file_obj = io.BytesIO(file_content)
+    
+    # 返回文件下载响应
+    return send_file(
+        file_obj,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        as_attachment=True,
+        download_name=f"{file_id}.docx"
+    )
+
+@app.route('/d/<token>', methods=['GET'])
+def download_short_link(token: str) -> Response:
+    """
+    短链接文件下载接口
+    
+    验证令牌并返回对应的DOCX文件
+    """
+    # 验证短链接令牌并获取文件ID
+    file_id = token_service.verify_short_token(token)
     if not file_id:
         return jsonify({'error': '无效或已过期的下载链接'}), 403
     

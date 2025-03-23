@@ -119,4 +119,42 @@ class LocalStorage(BaseStorage):
             if self.delete(file_id):
                 count += 1
         
-        return count 
+        return count
+        
+    def get_all_file_ids(self) -> List[str]:
+        """
+        获取所有存储的文件ID
+        
+        Returns:
+            文件ID列表
+        """
+        # 添加调试信息
+        print(f"文件元数据字典内容: {self.file_metadata}")
+        
+        # 由于文件ID可能在内存中而未保存到持久化存储
+        # 检查目录中的所有文件，尝试匹配回文件ID
+        file_ids = list(self.file_metadata.keys())
+        
+        # 如果内存中没有文件ID，尝试从文件名推断
+        if not file_ids:
+            try:
+                # 遍历存储目录中的所有文件
+                if os.path.exists(self.storage_path):
+                    for filename in os.listdir(self.storage_path):
+                        # 尝试从文件名提取文件ID（假设文件名就是文件ID.docx格式）
+                        file_path = os.path.join(self.storage_path, filename)
+                        if os.path.isfile(file_path) and filename.endswith('.docx'):
+                            potential_id = filename[:-5]  # 移除.docx后缀
+                            if len(potential_id) > 8:  # 简单验证ID有效性
+                                # 添加到元数据
+                                self.file_metadata[potential_id] = {
+                                    'file_path': file_path,
+                                    'created_at': os.path.getctime(file_path),
+                                    'expires_at': os.path.getctime(file_path) + self.retention_seconds
+                                }
+                                file_ids.append(potential_id)
+            except Exception as e:
+                print(f"尝试从目录读取文件ID时出错: {str(e)}")
+                
+        print(f"返回的文件ID列表: {file_ids}")
+        return file_ids 

@@ -2,7 +2,7 @@
 存储服务抽象基类，提供文件存储和管理功能
 """
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Optional, List
 
 
 class BaseStorage(ABC):
@@ -55,5 +55,15 @@ class BaseStorage(ABC):
         
         Returns:
             清理的文件数量
+        """
+        pass
+    
+    @abstractmethod
+    def get_all_file_ids(self) -> List[str]:
+        """
+        获取所有存储的文件ID
+        
+        Returns:
+            文件ID列表
         """
         pass 
