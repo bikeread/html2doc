@@ -116,15 +116,35 @@ def download_file(token: str) -> Response:
     if not file_content:
         return jsonify({'error': '文件不存在或已被删除'}), 404
     
-    # 将文件内容转换为文件对象
+    # 获取HTTP头信息
+    user_agent = request.headers.get('User-Agent', '')
+    referer = request.headers.get('Referer', '')
+    download_mode = request.args.get('mode', '')
+    
+    # 文件内容
     file_obj = io.BytesIO(file_content)
     
-    # 为内嵌场景创建响应
-    response = make_response(file_content)
-    response.headers['Content-Type'] = 'application/octet-stream'
-    response.headers['Content-Disposition'] = f'inline; filename="{file_id}.docx"'
+    # 检测是否可能来自新窗口请求
+    is_likely_new_window = (
+        'target=_blank' in referer or 
+        download_mode == 'download' or
+        not referer  # 无来源页面可能是直接打开或新窗口
+    )
     
-    return response
+    if is_likely_new_window:
+        # 对新窗口请求使用下载附件模式
+        return send_file(
+            file_obj,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            as_attachment=True,
+            download_name=f"{file_id}.docx"
+        )
+    else:
+        # 内嵌场景使用内联模式
+        response = make_response(file_content)
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        response.headers['Content-Disposition'] = f'inline; filename="{file_id}.docx"'
+        return response
 
 @app.route('/d/<token>', methods=['GET'])
 def download_short_link(token: str) -> Response:
@@ -143,12 +163,35 @@ def download_short_link(token: str) -> Response:
     if not file_content:
         return jsonify({'error': '文件不存在或已被删除'}), 404
     
-    # 为内嵌场景创建响应
-    response = make_response(file_content)
-    response.headers['Content-Type'] = 'application/octet-stream'
-    response.headers['Content-Disposition'] = f'inline; filename="{file_id}.docx"'
+    # 获取HTTP头信息
+    user_agent = request.headers.get('User-Agent', '')
+    referer = request.headers.get('Referer', '')
+    download_mode = request.args.get('mode', '')
     
-    return response
+    # 文件内容
+    file_obj = io.BytesIO(file_content)
+    
+    # 检测是否可能来自新窗口请求
+    is_likely_new_window = (
+        'target=_blank' in referer or 
+        download_mode == 'download' or
+        not referer  # 无来源页面可能是直接打开或新窗口
+    )
+    
+    if is_likely_new_window:
+        # 对新窗口请求使用下载附件模式
+        return send_file(
+            file_obj,
+            mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            as_attachment=True,
+            download_name=f"{file_id}.docx"
+        )
+    else:
+        # 内嵌场景使用内联模式
+        response = make_response(file_content)
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        response.headers['Content-Disposition'] = f'inline; filename="{file_id}.docx"'
+        return response
 
 @app.route('/health', methods=['GET'])
 def health_check() -> Response:
