@@ -1,0 +1,37 @@
+services:
+  html2doc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: html2doc-service
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - html2doc_storage:/app/tmp/storage
+    environment:
+      - SECRET_KEY=test
+      - STORAGE_PATH=/app/tmp/storage
+      - BASE_URL=http://html2doc-service:5000
+      - CONVERTER_TYPE=docx
+      - LINK_EXPIRES_DEFAULT=300
+      - LINK_EXPIRES_MAX=3600
+      - FILE_RETENTION=600
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - default
+      - dify_default  # 使用Dify已创建的网络名称
+
+volumes:
+  html2doc_storage:
+    driver: local 
+
+networks:
+  default:
+  dify_default:  # 使用Dify已创建的网络
+    external: true
