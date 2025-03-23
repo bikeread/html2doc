@@ -96,7 +96,7 @@ def convert_html() -> tuple[Response, int] | Response:
         embed_url = f"{BASE_URL}/d/{token}"
         
         return jsonify({
-            'file_url': file_url,             # 新格式：直接带扩展名
+            'download_url': file_url,             # 新格式：直接带扩展名
             'embed_url': embed_url,           # 旧格式：内嵌显示
             'expires_in': expires_in
         })
