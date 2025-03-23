@@ -25,7 +25,7 @@ services:
       start_period: 5s
     networks:
       - default
-      - dify_default  # 使用Dify已创建的网络名称
+      - docker_default  # 使用Dify的主网络
 
 volumes:
   html2doc_storage:
@@ -33,5 +33,5 @@ volumes:
 
 networks:
   default:
-  dify_default:  # 使用Dify已创建的网络
+  docker_default:  # 引用Dify的主网络
     external: true
