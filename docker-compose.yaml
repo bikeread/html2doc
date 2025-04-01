@@ -14,8 +14,8 @@ services:
       - STORAGE_PATH=/app/tmp/storage
       - BASE_URL=http://html2doc-service:5000
       - CONVERTER_TYPE=docx
-      - LINK_EXPIRES_DEFAULT=300
-      - LINK_EXPIRES_MAX=3600
+      - LINK_EXPIRES_DEFAULT=3600
+      - LINK_EXPIRES_MAX=86400
       - FILE_RETENTION=600
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]

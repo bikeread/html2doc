@@ -398,6 +398,46 @@ class DocxConverter(BaseConverter):
                         logger.debug(f"应用段前距离: {margin_top}")
                 except ValueError:
                     logger.warning(f"无法解析段前距离: {margin_top}")
+        
+        # 首行缩进 - 使用CSS的text-indent属性或为普通段落添加默认缩进
+        text_indent = styles.get('text-indent', '')
+        if text_indent:
+            try:
+                # 处理em单位 (如 "2em")
+                if text_indent.endswith('em'):
+                    indent_match = re.match(r'(\d+\.?\d*)em', text_indent)
+                    if indent_match:
+                        value = float(indent_match.group(1))
+                        paragraph.paragraph_format.first_line_indent = Pt(value * 12)  # 假设1em = 12pt
+                        logger.debug(f"应用首行缩进: {text_indent}")
+                # 处理px或pt单位 (如 "28px"或"21pt")
+                elif text_indent.endswith('px') or text_indent.endswith('pt'):
+                    indent_match = re.match(r'(\d+\.?\d*)(?:px|pt)', text_indent)
+                    if indent_match:
+                        value = float(indent_match.group(1))
+                        # 如果是px单位，做简单转换 (1px ≈ 0.75pt)
+                        if text_indent.endswith('px'):
+                            value *= 0.75
+                        paragraph.paragraph_format.first_line_indent = Pt(value)
+                        logger.debug(f"应用首行缩进: {text_indent}")
+                # 处理cm单位 (如 "0.5cm")
+                elif text_indent.endswith('cm'):
+                    indent_match = re.match(r'(\d+\.?\d*)cm', text_indent)
+                    if indent_match:
+                        value = float(indent_match.group(1))
+                        # 1cm ≈ 28.3pt
+                        paragraph.paragraph_format.first_line_indent = Pt(value * 28.3)
+                        logger.debug(f"应用首行缩进: {text_indent}")
+            except ValueError as e:
+                logger.warning(f"无法解析首行缩进: {text_indent}, 错误: {e}")
+        else:
+            # 为普通段落添加默认缩进 (2个中文字符宽度，约28磅)
+            # 简化判断逻辑，仅使用paragraph.style.name == 'Normal'
+            if paragraph.style.name == 'Normal':
+                # 检查段落是否已有首行缩进设置
+                if paragraph.paragraph_format.first_line_indent is None:
+                    paragraph.paragraph_format.first_line_indent = Pt(28)
+                    logger.debug("应用默认首行缩进: 28pt (约2个中文字符)")
     
     def _process_html_body(self, soup, doc, css_styles):
         """
@@ -476,6 +516,12 @@ class DocxConverter(BaseConverter):
         element_styles = self._get_element_styles(element, css_styles)
         class_names = element.get('class', [])
         
+        # 处理表格元素
+        if element.name == 'table':
+            logger.info("处理表格元素")
+            self._process_table(element, doc, css_styles, current_section)
+            return
+            
         # 处理不同类型的元素
         if element.name == 'div':
             # 特殊处理不同部分
@@ -631,3 +677,194 @@ class DocxConverter(BaseConverter):
             for child in element.children:
                 if child.name:  # 只处理元素节点，跳过文本节点
                     self._process_element(child, doc, css_styles, current_section) 
+    
+    def _process_table(self, element, doc, css_styles, current_section=None):
+        """
+        处理HTML表格元素，转换为DOCX表格
+        
+        Args:
+            element: BeautifulSoup表格元素
+            doc: python-docx文档对象
+            css_styles: CSS样式字典
+            current_section: 当前处理的文档部分
+            
+        Returns:
+            None
+        """
+        # 分析表格结构
+        rows = element.find_all('tr', recursive=True)
+        if not rows:
+            logger.warning("表格中未找到行元素")
+            return
+            
+        # 确定表格最大列数
+        max_cols = 0
+        for row in rows:
+            cells = row.find_all(['td', 'th'], recursive=False)
+            col_count = sum(int(cell.get('colspan', 1)) for cell in cells)
+            max_cols = max(max_cols, col_count)
+            
+        if max_cols == 0:
+            logger.warning("表格无有效列")
+            return
+            
+        logger.info(f"创建表格: {len(rows)}行 x {max_cols}列")
+        
+        # 创建DOCX表格
+        table = doc.add_table(rows=len(rows), cols=max_cols)
+        table.style = 'Table Grid'  # 设置基本网格样式
+        
+        # 处理表格整体样式
+        table_styles = self._get_element_styles(element, css_styles)
+        self._apply_table_styles(table, table_styles)
+        
+        # 处理行和单元格
+        for i, row in enumerate(rows):
+            cells = row.find_all(['td', 'th'], recursive=False)
+            col_index = 0
+            
+            for cell in cells:
+                # 获取单元格跨行和跨列信息
+                rowspan = int(cell.get('rowspan', 1))
+                colspan = int(cell.get('colspan', 1))
+                
+                # 跳过已经被合并的单元格
+                while col_index < max_cols and table.cell(i, col_index)._element.getparent() != table.rows[i]._element:
+                    col_index += 1
+                    
+                if col_index >= max_cols:
+                    break
+                    
+                # 获取目标单元格
+                target_cell = table.cell(i, col_index)
+                
+                # 合并单元格
+                if rowspan > 1 or colspan > 1:
+                    # 确保不超出表格边界
+                    end_row = min(i + rowspan - 1, len(rows) - 1)
+                    end_col = min(col_index + colspan - 1, max_cols - 1)
+                    
+                    if end_row > i or end_col > col_index:
+                        target_cell = table.cell(i, col_index)
+                        merge_cell = table.cell(end_row, end_col)
+                        target_cell.merge(merge_cell)
+                        logger.debug(f"合并单元格: 从({i},{col_index})到({end_row},{end_col})")
+                
+                # 处理单元格内容
+                cell_content = cell.get_text().strip()
+                if cell_content:
+                    # 清除现有段落内容
+                    for paragraph in target_cell.paragraphs:
+                        if paragraph.text:
+                            for run in paragraph.runs:
+                                run.text = ""
+                    
+                    # 添加文本
+                    paragraph = target_cell.paragraphs[0] if target_cell.paragraphs else target_cell.add_paragraph()
+                    run = paragraph.add_run(cell_content)
+                    
+                    # 判断是否表头单元格
+                    if cell.name == 'th':
+                        run.bold = True
+                        paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                    
+                    # 应用单元格样式
+                    cell_styles = self._get_element_styles(cell, css_styles)
+                    self._apply_cell_styles(target_cell, paragraph, run, cell_styles)
+                    self._apply_paragraph_styles(paragraph, cell_styles)
+                
+                # 移动到下一个列索引
+                col_index += colspan
+        
+        logger.info("表格处理完成")
+    
+    def _apply_table_styles(self, table, styles):
+        """应用样式到整个表格"""
+        if not styles:
+            return
+            
+        # 表格宽度
+        width = styles.get('width', '')
+        if width:
+            try:
+                # 解析百分比或像素值
+                if '%' in width:
+                    # 百分比转换为近似英寸
+                    percent = float(width.strip('%')) / 100
+                    table.width = Inches(6 * percent)  # 假设页面宽度为6英寸
+                else:
+                    # 像素转换为英寸 (假设96dpi)
+                    pixels = float(re.match(r'(\d+)', width).group(1))
+                    table.width = Inches(pixels / 96)
+            except (ValueError, AttributeError):
+                logger.warning(f"无法解析表格宽度: {width}")
+        
+        # 边框样式
+        border = styles.get('border', '')
+        if border:
+            # 简单处理边框样式
+            try:
+                for cell in table._cells:
+                    self._set_cell_border(cell, border)
+            except Exception as e:
+                logger.warning(f"设置表格边框时出错: {e}")
+    
+    def _apply_cell_styles(self, cell, paragraph, run, styles):
+        """应用样式到表格单元格"""
+        if not styles:
+            return
+            
+        # 背景色
+        bg_color = styles.get('background-color', '')
+        if bg_color:
+            try:
+                # 解析RGB颜色
+                if bg_color.startswith('#'):
+                    # 16进制颜色值
+                    r = int(bg_color[1:3], 16)
+                    g = int(bg_color[3:5], 16)
+                    b = int(bg_color[5:7], 16)
+                    self._set_cell_background(cell, r, g, b)
+                elif bg_color.startswith('rgb'):
+                    # RGB函数格式
+                    rgb_match = re.match(r'rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)', bg_color)
+                    if rgb_match:
+                        r, g, b = map(int, rgb_match.groups())
+                        self._set_cell_background(cell, r, g, b)
+            except Exception as e:
+                logger.warning(f"设置单元格背景色时出错: {e}")
+        
+        # 文本对齐
+        text_align = styles.get('text-align', '')
+        if text_align:
+            if text_align == 'center':
+                paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            elif text_align == 'right':
+                paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+            elif text_align == 'left':
+                paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+            elif text_align == 'justify':
+                paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.JUSTIFY
+    
+    def _set_cell_border(self, cell, border_spec):
+        """设置单元格边框"""
+        # 简化实现：暂不支持详细的边框样式
+        pass
+    
+    def _set_cell_background(self, cell, r, g, b):
+        """设置单元格背景色"""
+        try:
+            from docx.oxml.ns import nsdecls
+            from docx.oxml import parse_xml
+            
+            # 创建单元格阴影元素
+            shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{self._rgb_to_hex(r, g, b)}"/>')
+            
+            # 应用到单元格属性
+            cell._tc.get_or_add_tcPr().append(shd)
+        except ImportError:
+            logger.warning("无法设置单元格背景色，需要安装lxml库")
+    
+    def _rgb_to_hex(self, r, g, b):
+        """将RGB值转换为十六进制颜色代码"""
+        return f"{r:02x}{g:02x}{b:02x}" 

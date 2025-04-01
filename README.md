@@ -9,6 +9,7 @@
 - 自动清理过期文件
 - 使用python-docx + BeautifulSoup实现HTML到DOCX的转换
 - 轻量级部署，无需外部依赖
+- **支持HTML表格转换**，包括合并单元格和样式
 
 ## 架构设计
 
@@ -18,7 +19,8 @@
    - 抽象基类 `BaseConverter`
    - 实现类 `DocxConverter` 
    - 工厂类 `ConverterFactory` 创建具体转换器实例
-x
+   - 使用策略模式处理不同HTML元素（如段落、标题、表格等）
+
 2. **存储层**：负责文件存储与管理
    - 抽象基类 `BaseStorage`
    - 实现类 `LocalStorage`（可扩展其他存储如S3等）
@@ -100,6 +102,47 @@ GET /download/eyJ0eXAi...
 GET /health
 ```
 
+## 表格支持说明
+
+### 支持的表格特性
+
+- 基本表格结构转换
+- 表头样式处理（粗体、居中）
+- 单元格合并（rowspan、colspan）
+- 表格边框和样式
+- 单元格背景色
+- 文本对齐方式
+
+### 表格示例
+
+```html
+<table>
+    <tr>
+        <th>序号</th>
+        <th>运动类型</th>
+        <th>每周频率</th>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>力量训练</td>
+        <td>3-4次</td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td>有氧运动</td>
+        <td>4-5次</td>
+    </tr>
+</table>
+```
+
+### 测试表格转换
+
+可以使用提供的测试脚本测试表格转换效果：
+
+```bash
+python test_table_direct.py
+```
+
 ## 扩展指南
 
 ### 添加新的转换器
@@ -113,6 +156,14 @@ GET /health
 1. 在 `storage` 目录下创建新的存储类，继承 `BaseStorage`
 2. 实现所有抽象方法
 3. 在 `app.py` 中使用新的存储类
+
+### 添加新的HTML元素处理
+
+参考表格处理的实现方式，可以为其他HTML元素添加专门的处理方法：
+
+1. 在`DocxConverter`类中添加新的处理方法（如`_process_new_element_type`）
+2. 在`_process_element`方法中添加对应的条件分支
+3. 实现元素特定的处理逻辑
 
 ## 注意事项
 
