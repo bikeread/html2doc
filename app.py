@@ -73,7 +73,7 @@ def convert_html() -> tuple[Response, int] | Response:
     
     data = request.json
     html_content = data.get('html')
-    expires_in = data.get('expires_in', LINK_EXPIRES_DEFAULT)
+    expires_in = data.get('expires_in', FILE_RETENTION)
     
     # 验证参数
     if not html_content:
