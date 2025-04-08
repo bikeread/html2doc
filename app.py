@@ -33,8 +33,6 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'dev_secret_key')
 STORAGE_PATH = os.getenv('STORAGE_PATH', 'tmp/storage')
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:5000')
 CONVERTER_TYPE = os.getenv('CONVERTER_TYPE', 'docx')
-LINK_EXPIRES_DEFAULT = safe_get_int('LINK_EXPIRES_DEFAULT', 300)
-LINK_EXPIRES_MAX = safe_get_int('LINK_EXPIRES_MAX', 3600)
 FILE_RETENTION = safe_get_int('FILE_RETENTION', 600)
 
 # 初始化应用
@@ -44,7 +42,7 @@ app.config['SECRET_KEY'] = SECRET_KEY
 # 初始化服务
 converter = ConverterFactory.get_converter(CONVERTER_TYPE)
 storage = LocalStorage(STORAGE_PATH, FILE_RETENTION)
-token_service = TokenService(SECRET_KEY, LINK_EXPIRES_DEFAULT, LINK_EXPIRES_MAX)
+token_service = TokenService(SECRET_KEY, FILE_RETENTION)
 
 # 定期清理过期文件的后台任务
 def cleanup_task() -> None:

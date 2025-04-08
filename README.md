@@ -46,8 +46,6 @@ SECRET_KEY=your_secret_key
 STORAGE_PATH=tmp/storage
 BASE_URL=http://localhost:5000
 CONVERTER_TYPE=docx
-LINK_EXPIRES_DEFAULT=300  # 5分钟
-LINK_EXPIRES_MAX=3600  # 最长1小时
 FILE_RETENTION=600  # 文件保留10分钟
 ```
 
